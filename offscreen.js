@@ -2,7 +2,7 @@
 let workerPromise;
 function worker() {
   if (!workerPromise) workerPromise = Tesseract.createWorker('eng', 1, {
-    workerPath: chrome.runtime.getURL('ocr/worker.min.js'),
+    workerPath: chrome.runtime.getURL('ocr-worker.js'),
     corePath: chrome.runtime.getURL('ocr/tesseract-core.wasm.js'),
     langPath: chrome.runtime.getURL('ocr'),
     workerBlobURL: false,

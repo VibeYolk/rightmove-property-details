@@ -49,6 +49,8 @@ During a scan, the extension downloads one floorplan image for the property from
 
 The current version can distinguish image download failures, OCR engine failures, no recognised text and no area found. If recognition fails, make a note of the specific message shown on the card. Always check the result against the original image.
 
+The OCR engine may encounter individual image regions that it cannot read even when recognition of the rest of the floorplan succeeds. Two known nonfatal diagnostics for these regions are logged at debug level; actual OCR failures are still reported.
+
 ## Testing status
 
 This project is still a test version. OCR and area parsing have been tested with local images, and the recognition controls and task scheduling have been tested in a simulated environment. Full end-to-end testing of the Chrome extension with Rightmove has not yet been completed. Actual display and recognition results may vary with the website's structure and image quality.
