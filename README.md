@@ -1,49 +1,48 @@
-# Rightmove 房源信息插件
+# Rightmove Property Details Extension
 
-这是独立制作的非官方浏览器扩展，与 Rightmove 没有合作、关联或官方认可。
+This is an independently developed, unofficial browser extension. It is not affiliated with, partnered with, or endorsed by Rightmove.
 
-这是一个用于 Chrome 和 Microsoft Edge 的本地测试版插件。在房源搜索结果页面，插件会在接近屏幕可见范围的房源卡片下显示面积、Council Tax 等级、Ground Rent（地租）、Service Charge（服务费）和 Lease remaining（剩余租期），无需手动逐个打开详情页。
+This local test version for Chrome and Microsoft Edge displays property size, Council Tax band, ground rent, service charge and remaining lease on search result cards near the visible area of the page, without requiring you to open each property listing.
 
-## 使用前请注意
+## Before you use it
 
-Rightmove 的[使用条款](https://www.rightmove.co.uk/c/terms-of-use/)第 5.2 和 5.5 节限制自动访问和提取数据；本插件会自动请求房源详情页，因此使用前需要先取得 Rightmove 的书面许可。插件遇到 403 或 429 时会停止自动请求，不会绕过限制。
+Sections 5.2 and 5.5 of [Rightmove's terms of use](https://www.rightmove.co.uk/c/terms-of-use/) restrict automated access and data extraction. This extension automatically requests property detail pages, so you need Rightmove's written permission before using it. If it receives a 403 or 429 response, it stops making automatic requests; it does not bypass access restrictions.
 
-## 安装
+## Installation
 
-取得许可后，从 GitHub 仓库页面选择 **Code → Download ZIP** 并解压。然后：
+Once you have permission, select **Code → Download ZIP** on the GitHub repository page and extract the archive. Then:
 
-1. 打开 Chrome 的 `chrome://extensions`，或 Edge 的 `edge://extensions`。
-2. 打开右上角的“开发者模式”。
-3. 点击“加载已解压的扩展程序”，选择解压后包含本 README 和 `manifest.json` 的文件夹。
-4. 打开或刷新 Rightmove 的买房或租房搜索结果页，向下滚动即可看到信息。
+1. Open `chrome://extensions` in Chrome or `edge://extensions` in Edge.
+2. Enable **Developer mode** in the upper-right corner.
+3. Click **Load unpacked** and select the extracted folder containing this README and `manifest.json`.
+4. Open or refresh a Rightmove property sale or rental search results page. Scroll down to see the extra details.
 
-如果已经安装旧版本：解压新版后，在扩展管理页面先移除旧版本，再按上述步骤选择新版的文件夹；最后刷新 Rightmove 搜索结果页。也可以将新版文件覆盖到原插件文件夹，在扩展管理页面点击该插件的刷新按钮，再刷新搜索结果页。
+If you have an older version installed, extract the new version, remove the old extension from the extensions page, load the new folder as described above, and refresh the Rightmove search results page. Alternatively, replace the files in the existing extension folder, click the extension's reload button on the extensions page, and then refresh the Rightmove search results page.
 
-插件未经 Chrome 应用商店发布；它向 `www.rightmove.co.uk` 请求当前搜索结果的详情页，并可能向 `media.rightmove.co.uk` 请求相应户型图，不向其他网站发送数据。请求顺序执行、间隔至少 1.5 秒；已读取的结果暂存在浏览器扩展内存中，最多 30 分钟。浏览器可能更早清理缓存。
+The extension is not published in the Chrome Web Store. It requests detail pages for the current search results from `www.rightmove.co.uk` and may request their floorplans from `media.rightmove.co.uk`; it does not send data to other websites. Requests are made sequentially, at least 1.5 seconds apart. Results are cached in extension memory for up to 30 minutes, although the browser may clear them sooner.
 
-户型图 OCR 默认为关闭。搜索结果中房源未提供可识别面积且有户型图时，点击卡片上的 **Scan floorplan** 即可只识别这一套房；也可以点击浏览器工具栏的插件图标，开启“自动识别户型图面积”。再次关闭后，排队中的自动识别不会启动，正在下载的自动任务会中止；已经在本机进行的识别可能会运行至结束，但结果不会用于更新卡片。基础房源信息会先显示，不需要等待图像识别。
+Automatic floorplan OCR is off by default. If a search result has a floorplan but no identifiable property size, click **Scan floorplan** on that card to scan just that property. You can also click the extension icon in the browser toolbar and enable **自动识别户型图面积** (automatically scan floorplans). When you turn it off again, queued automatic scans will not start and any automatic download in progress will be aborted. Recognition already running on your computer may finish, but its result will not update the card. Basic property details appear first, without waiting for image recognition.
 
-识别时插件会从 `media.rightmove.co.uk` 下载该房源的一张户型图，并在本机使用随插件附带的 Tesseract 和英语语言模型识别文字。图片和识别文字不会发送给其他 OCR 服务。识别可能耗时，户型图图片请求也属于自动访问，请先取得 Rightmove 的书面许可。
+During a scan, the extension downloads one floorplan image for the property from `media.rightmove.co.uk` and recognises text locally using the bundled Tesseract engine and English language model. Neither the image nor the recognised text is sent to another OCR service. Recognition may take time. Floorplan image requests also constitute automated access, so obtain Rightmove's written permission first.
 
-## 数据限制
+## Data limitations
 
-- Council Tax 显示的是等级（Band），不是每年的应缴金额。实际金额因地方政府及个人情况而异。
-- 只有广告明确提供并且插件能识别的信息才会显示；“Not found”表示插件没有找到可识别的值，并不证明广告没有提供或费用为零。“Ask agent”表示来源中明确显示需要询问中介。信息提取可能遗漏或误读，请在做决定前向中介核实。
-- 用户手动触发识别、或开启自动识别后，插件尝试识别户型图中明确标注的整套房屋总面积，例如 Gross Internal Floor Area。结果标为“floorplan OCR”，为近似识别值，必须对照户型图核实。它不会推算单个房间面积或从 PDF 中识别；识别不到时保留原有状态并提示没有读出总面积。
-- OCR 也支持 Total area、Total floor area、Approx. floor area、Approx. area，以及整行单独给出的 Approx. 加面积；最后一种写法可能存在歧义，务必对照原图确认。插件会排除靠近房间、花园等标签的面积，并在出现多个候选或单位数值冲突时尽量不猜测。
-- 房源只给出平方英尺（sq ft）时，插件会保留原值并显示换算后的约数，单位为平方米（sq m）。如果原文同时给出两种单位，则保留原文数值，不重新换算。
-- Ground Rent 未披露不代表免费；价格及周期请以原始资料和律师核实为准。
-- Service Charge 是服务费，不是 Ground Rent。两项费用可能分别收取，剩余租期和费用请向中介及律师核实。
-- 如果显示“Details could not be loaded”，可能是网络、网站布局改变、访问限制或广告下架造成；显示被阻止时应停止使用，并在获得许可后再联系 Rightmove。
-- 网站结构会变化，本地测试版可能需要更新。卸载扩展即可停止使用。
+- Council Tax shows the property's band, not the annual amount payable. The amount varies by local authority and personal circumstances.
+- The extension shows information only when it is explicitly provided in the listing and the extension can recognise it. **Not found** means the extension could not find a recognisable value; it does not prove that the listing lacks the information or that a charge is zero. **Ask agent** means the source explicitly says to ask the agent. Extraction may miss or misread information, so check it with the agent before making a decision.
+- When a scan is started manually or automatic scanning is enabled, the extension attempts to recognise an explicitly labelled total area for the entire property, such as Gross Internal Floor Area. Results are marked **floorplan OCR**, are approximate, and must be checked against the floorplan. It does not calculate the area of individual rooms or read PDFs. If it cannot recognise the total area, it keeps the original status and indicates that no total area was read.
+- OCR also supports labels such as Total area, Total floor area, Approx. floor area and Approx. area, as well as a standalone line containing Approx. followed by an area. The last form can be ambiguous, so always check it against the original image. The extension excludes areas near room or garden labels and tries not to guess when there are multiple candidates or conflicting values in different units.
+- When a listing gives only square feet (sq ft), the extension keeps the original value and displays an approximate conversion to square metres (sq m). If the source gives both units, it keeps the original values without recalculating them.
+- An undisclosed ground rent does not mean there is no charge. Confirm the amount and payment period with the original documents and your solicitor.
+- Service charge is separate from ground rent. Both may be payable; confirm charges and the remaining lease term with the agent and your solicitor.
+- **Details could not be loaded** may be caused by network problems, changes to the website, access restrictions or a withdrawn listing. If a request is blocked, stop using the extension and contact Rightmove after obtaining permission.
+- The website's structure can change, so this local test version may need updates. Uninstall the extension to stop using it.
 
-新版可以区分图片下载、识别引擎、未读到文字和未找到面积等不同问题。若识别失败，请记录卡片上的具体提示。识别结果仍需对照原图确认。
+The current version can distinguish image download failures, OCR engine failures, no recognised text and no area found. If recognition fails, make a note of the specific message shown on the card. Always check the result against the original image.
 
+## Testing status
 
-## 测试状态
+This project is still a test version. OCR and area parsing have been tested with local images, and the recognition controls and task scheduling have been tested in a simulated environment. Full end-to-end testing of the Chrome extension with Rightmove has not yet been completed. Actual display and recognition results may vary with the website's structure and image quality.
 
-本项目仍是测试版：已使用本地图片测试 OCR 与面积解析，并以模拟环境测试识别开关和任务调度；尚未完成 Chrome 扩展与 Rightmove 的完整端到端验证。实际显示和识别效果可能因网站结构或图片质量而变化。
+## Third-party components
 
-## 第三方组件
-
-本扩展包含本地 OCR 组件；来源、许可及校验信息见 [ocr/THIRD-PARTY.md](ocr/THIRD-PARTY.md)。本仓库的自有代码暂未声明单独的开源许可证；第三方组件各自的许可证照常适用。
+The extension includes local OCR components. See [ocr/THIRD-PARTY.md](ocr/THIRD-PARTY.md) for their sources, licences and checksums. The code authored for this repository does not currently have a separate open-source licence; the licences for the third-party components continue to apply.
