@@ -1,0 +1,21 @@
+.rm-extra-host { flex-wrap: wrap; }
+.rm-extra-details {
+  box-sizing: border-box;
+  flex: 0 0 100%;
+  width: 100%;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  padding: 9px 16px;
+  border-top: 1px solid #d8dedc;
+  background: #f4f8f7;
+  color: #253954;
+  font: 13px/1.5 Arial, sans-serif;
+}
+.rm-extra-details strong { color: #142e48; font-weight: 700; }
+.rm-extra-error { color: #8b3b25; }
+.rm-scan-button { border: 1px solid #007b70; border-radius: 4px; background: #fff; color: #006b62; padding: 2px 7px; font: inherit; cursor: pointer; }
+.rm-scan-button:hover { background: #e8f4f2; }
+.rm-scan-button:focus-visible { outline: 2px solid #006b62; outline-offset: 2px; }
+.rm-scan-button:disabled { color: #697a79; border-color: #a5b4b2; cursor: wait; }

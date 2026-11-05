@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>房源信息设置</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <h1>房源信息设置</h1>
+  <label class="setting"><input id="auto-ocr" type="checkbox"><span><strong>自动识别户型图面积</strong><small>Automatically scan floorplans</small></span></label>
+  <p>默认关闭。关闭时，可在需要的房源卡片点击 <strong>Scan floorplan</strong> 手动识别。</p>
+  <p>开启后，仅在页面没有面积时尝试识别。图片由 Rightmove 提供，文字识别在本机进行，可能需要一些时间。</p>
+  <p id="status" class="status" role="status" aria-live="polite"></p>
+  <script src="popup.js"></script>
+</body></html>
