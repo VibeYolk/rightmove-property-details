@@ -70,7 +70,7 @@
       sizeRow.append(' ', button);
     }
     if (record.status) sizeRow.append(document.createTextNode(` (${record.status})`));
-    box.replaceChildren(sizeRow, row('Council tax', data.tax || 'Not found'), row('Ground rent', data.ground || 'Not found'), row('Service charge', data.service || 'Not found'), row('Lease remaining', data.lease || 'Not found'));
+    box.replaceChildren(sizeRow, row('Tenure', data.tenureType || 'Not found'), row('Council tax', data.tax || 'Not found'), row('Ground rent', data.ground || 'Not found'), row('Service charge', data.service || 'Not found'), row('Lease remaining', data.lease || 'Not found'));
     box.title = 'Not found means the extension could not find a value, not that the listing has none. Verify all details with the agent.';
   }
   async function startScan(record, automatic) {

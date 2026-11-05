@@ -34,6 +34,34 @@ function plain(value) {
   return String(value || '').replace(/<br\s*\/?\s*>|<\/p>|<\/li>/gi, '\n').replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;|&#160;/gi,' ').replace(/&pound;|&#163;|&#xA3;/gi,'£').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
 }
+function parseTenure(p) {
+  function normalise(value) {
+    if (typeof value !== 'string') return null;
+    const clean = value.trim().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').toLowerCase();
+    const recognised = {
+      'freehold': 'Freehold', 'leasehold': 'Leasehold',
+      'share of freehold': 'Share of freehold', 'share freehold': 'Share of freehold',
+      'commonhold': 'Commonhold', 'feuhold': 'Feuhold',
+      'ask agent': 'Ask agent', 'ask the agent': 'Ask agent'
+    };
+    return recognised[clean] || null;
+  }
+  const model = p.tenure && typeof p.tenure === 'object' ? p.tenure : {};
+  const candidates = [typeof p.tenure === 'string' ? p.tenure : null,
+    model.tenureType, model.type, model.displayValue, p.tenureType];
+  for (const group of [p.infoReelItems, p.propertyDetailsInfo?.content]) {
+    if (!Array.isArray(group)) continue;
+    for (const item of group) {
+      if (/^tenure$/i.test(item?.type || item?.title || '')) candidates.push(item.primaryText || item.value);
+    }
+  }
+  candidates.push(p.tenureInfo?.title);
+  for (const candidate of candidates) {
+    const value = normalise(candidate);
+    if (value) return value;
+  }
+  return null;
+}
 function parseProperty(p) {
   const costs = p.livingCosts || {}, tenure = p.tenure || {};
   const unknown = value => typeof value === 'string' && /^ask\s+(?:the\s+)?agent$/i.test(value.trim());
@@ -51,7 +79,8 @@ function parseProperty(p) {
   if ((typeof years === 'number' && Number.isFinite(years) && years >= 0) || (typeof years === 'string' && /^\d+(?:\.\d+)?$/.test(years.trim()))) lease = `${years} years left`;
   else if (typeof years === 'string' && /^\d+(?:\.\d+)?\s+years?\s+(?:left|remaining)$/i.test(years.trim())) lease = years.trim();
   else if (unknown(years)) lease = 'Ask agent';
-  const area = /\b([\d,]+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|m(?:et(?:re|er)s?)?)\.?|square\s*(?:feet|foot|metres?|meters?)|sqft|sqm|m²|ft²)(?!\w)/i;
+  const area = /\b([\d,]+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|m(?:et(?:re|er)s?)?)\.?|square\s*(?:feet|foot|metres?|meters?)|sqft|sqm|m(?:²|\^?2)|ft(?:²|\^?2))(?!\w)/i;
+  const rangeArea = /\b([\d,]+(?:\.\d+)?)\s*(?:-|–|to)\s*([\d,]+(?:\.\d+)?)\s*(sq\.?\s*(?:ft|feet|m(?:et(?:re|er)s?)?)\.?|square\s*(?:feet|foot|metres?|meters?)|sqft|sqm|m(?:²|\^?2)|ft(?:²|\^?2))(?!\w)/i;
   // Some page models include the same information as display-ready labelled entries.
   for (const item of Array.isArray(p.tenureInfo?.content) ? p.tenureInfo.content : []) {
     const value = typeof item?.value === 'string' ? plain(item.value) : '';
@@ -68,10 +97,14 @@ function parseProperty(p) {
   for (const item of sizeItems) {
     if (!/^size$/i.test(item?.type || item?.title || '')) continue;
     const value = plain(item.primaryText || item.value || '');
-    const match = value.match(area);
+    const match = value.match(rangeArea) || value.match(area);
     if (match) {
-      const second = plain(item.secondaryText || '').match(area);
-      size = match[0] + (second && second[0].toLowerCase() !== match[0].toLowerCase() ? ' / ' + second[0] : '');
+      const secondary = plain(item.secondaryText || '');
+      const second = secondary.match(rangeArea) || secondary.match(area);
+      const approximate = /(?:\bapprox(?:imately|imate)?\.?|\bcirca|≈|~)\s*$/i;
+      const firstText = (approximate.test(value.slice(0, match.index)) ? '≈ ' : '') + match[0];
+      const secondText = second ? (approximate.test(secondary.slice(0, second.index)) ? '≈ ' : '') + second[0] : '';
+      size = firstText + (second && second[0].toLowerCase() !== match[0].toLowerCase() ? ' / ' + secondText : '');
       break;
     }
     if (unknown(value)) size = 'Ask agent';
@@ -79,23 +112,40 @@ function parseProperty(p) {
   const values = Array.isArray(p.sizings) ? p.sizings : [];
   const areaParts = [];
   const addAreas = value => {
-    for (const match of plain(value).matchAll(new RegExp(area.source, 'ig'))) {
+    let text = plain(value);
+    const storeArea = match => {
       const part = match[0];
-      const isImperial = /(?:ft|feet|foot|ft²)\.?$/i.test(part);
-      if (!areaParts.some(entry => entry.imperial === isImperial)) areaParts.push({text: part, imperial: isImperial});
-    }
+      const isImperial = /(?:ft|feet|foot|ft(?:²|\^?2))\.?$/i.test(part);
+      const approximate = /(?:\bapprox(?:imately|imate)?\.?|\bcirca|≈|~)\s*$/i.test(text.slice(0, match.index));
+      if (!areaParts.some(entry => entry.imperial === isImperial)) areaParts.push({text: (approximate ? '≈ ' : '') + part, imperial: isImperial});
+    };
+    const ranges = [...text.matchAll(new RegExp(rangeArea.source, 'ig'))];
+    for (const match of ranges) storeArea(match);
+    text = text.replace(new RegExp(rangeArea.source, 'ig'), ' ');
+    for (const match of text.matchAll(new RegExp(area.source, 'ig'))) storeArea(match);
   };
   if (size && size !== 'Ask agent') addAreas(size);
   for (const item of values) {
     const s = typeof item === 'string' ? item : [item?.displaySize, item?.displayValue, item?.size, item?.unit].filter(v=>v != null).join(' ');
     addAreas(s);
+    if (item && typeof item === 'object') {
+      const unit = typeof item.unit === 'string' ? item.unit.trim().toLowerCase() : '';
+      const imperial = /^(?:sq\.?\s*ft\.?|sqft|square\s*feet|ft(?:²|\^?2))$/i.test(unit);
+      const metric = /^(?:sq\.?\s*m\.?|sqm|square\s*(?:metres?|meters?)|m(?:²|\^?2))$/i.test(unit);
+      const min = Number(item.minimumSize), max = Number(item.maximumSize);
+      if ((imperial || metric) && item.minimumSize != null && item.maximumSize != null &&
+          Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min &&
+          !areaParts.some(entry => entry.imperial === imperial)) {
+        areaParts.push({text: `${min === max ? min : `${min} - ${max}`} ${unit}`, imperial});
+      }
+    }
   }
   if (areaParts.length) size = areaParts.map(part => part.text).join(' / ');
   const features = Array.isArray(p.keyFeatures) ? p.keyFeatures.map(plain) : [];
   const description = plain(p.text?.description);
   for (const s of features) {
     const m = s.match(area);
-    if ((!size || size === 'Ask agent') && m && (!/\b(bedroom|reception|garden|balcony|terrace|kitchen|living room)\b/i.test(s) || /\b(total|overall|internal|property|floor area)\b/i.test(s))) size = m[0];
+    if ((!size || size === 'Ask agent') && m && (!/\b(bedroom|reception|garden|balcony|terrace|kitchen|living room)\b/i.test(s) || /\b(total|overall|internal|property|floor area)\b/i.test(s))) size = (/(?:\bapprox(?:imately|imate)?\.?|\bcirca|≈|~)\s*$/i.test(s.slice(0, m.index)) ? '≈ ' : '') + m[0];
   }
   const all = [...features, description];
   for (const s of all) {
@@ -112,21 +162,31 @@ function parseProperty(p) {
     }
     if (!size || size === 'Ask agent') {
       const m = s.match(/(?:total\s+(?:floor\s+)?area|overall\s+(?:floor\s+)?area|internal\s+(?:floor\s+)?area|floor\s+area|property\s+(?:size|area))\s*(?:of\s*)?[:\-]?\s*(?:approximately\s*|approx\.?\s*|circa\s*)?([\d,]+(?:\.\d+)?\s*(?:sq\.?\s*(?:ft|feet|m)\.?|square\s*(?:feet|foot|metres?|meters?)|sqft|sqm|m²|ft²))/i);
-      if (m) size = m[1].trim();
+      if (m) size = (/\b(?:approximately|approx\.?|circa)\b/i.test(m[0]) ? '≈ ' : '') + m[1].trim();
     }
   }
-  return { size, tax, ground, service, lease };
+  return { size, tax, ground, service, lease, tenureType: parseTenure(p) };
 }
-// Preserve all original units and add a clearly marked conversion only for sqft-only values.
-function withMetricArea(size) {
+// Display the supplied metric measurement when available; otherwise convert
+// square feet and explicitly mark the result as approximate.
+function toMetricArea(size) {
   if (typeof size !== 'string' || !size.trim()) return size;
-  const metric = /\d\s*(?:sq\.?\s*m(?:et(?:re|er)s?)?\.?|sqm|square\s*(?:metres?|meters?)|m(?:²|\^?2))(?!\w)/i;
-  if (metric.test(size)) return size;
-  const match = size.match(/\b(\d[\d,]*(?:\.\d+)?)\s*(?:sq\.?\s*(?:ft|feet)\.?|square\s*(?:feet|foot)|sqft|ft²)(?!\w)/i);
-  if (!match) return size;
+  if (/^ask\s+(?:the\s+)?agent$/i.test(size.trim())) return 'Ask agent';
+  const numeric = '(\\d[\\d,]*(?:\\.\\d+)?)';
+  const range = numeric + '(?:\\s*(?:-|–|to)\\s*' + numeric + ')?';
+  const metric = new RegExp('\\b' + range + '\\s*(?:sq\\.?\\s*m(?:et(?:re|er)s?)?\\.?|square\\s*(?:metres?|meters?)|m(?:²|\\^?2))(?!\\w)', 'i');
+  const imperial = new RegExp('\\b' + range + '\\s*(?:sq\\.?\\s*(?:ft|feet)\\.?|square\\s*(?:feet|foot)|ft(?:²|\\^?2))(?!\\w)', 'i');
+  const match = size.match(metric) || size.match(imperial);
+  if (!match) return null;
   const value = Number(match[1].replace(/,/g, ''));
-  if (!Number.isFinite(value) || value <= 0) return size;
-  return `${size} / ≈ ${(value * 0.09290304).toFixed(1)} sq m`;
+  const end = match[2] ? Number(match[2].replace(/,/g, '')) : null;
+  if (!Number.isFinite(value) || value <= 0) return null;
+  if (end !== null && (!Number.isFinite(end) || end < value)) return null;
+  if (metric.test(match[0])) {
+    const approx = /(?:\bapprox(?:imately|imate)?\.?|\bcirca|≈|~)\s*$/i.test(size.slice(0, match.index));
+    return `${approx ? '≈ ' : ''}${match[1]}${match[2] ? `–${match[2]}` : ''} sq m`;
+  }
+  return `≈ ${(value * 0.09290304).toFixed(1)}${end !== null ? `–${(end * 0.09290304).toFixed(1)}` : ''} sq m`;
 }
 // Only accept an explicitly labelled whole-property area, never room dimensions.
 function parseFloorplanArea(text) {
@@ -189,4 +249,4 @@ function parseFloorplanArea(text) {
   }
   return standalone.length === 1 ? standalone[0] : null;
 }
-if (typeof module !== 'undefined') module.exports = { parseProperty, decodeModel, readModel, parseFloorplanArea, withMetricArea };
+if (typeof module !== 'undefined') module.exports = { parseProperty, decodeModel, readModel, parseFloorplanArea, toMetricArea, parseTenure };

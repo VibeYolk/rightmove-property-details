@@ -103,7 +103,7 @@ async function load(id) {
     const property = model?.propertyData;
     if (!property || String(property.id) !== id) return {error:'unreadable'};
     const data = parseProperty(property);
-    if (data.size) data.size = withMetricArea(data.size);
+    if (data.size) data.size = toMetricArea(data.size);
     const floorplan = (!data.size || data.size === 'Ask agent') ? floorplanUrl(property) : null;
     const result = {data, hasFloorplan: !!floorplan};
     cache.set(id, {time:Date.now(), result, floorplan});
@@ -140,7 +140,10 @@ async function runOcrQueue() {
         if (job.automatic) activeAutomaticController = controller;
         const value = await readFloorplan(entry.floorplan, controller.signal);
         if (job.automatic && !await autoEnabled()) result = {status:'cancelled'};
-        else if (value.status === 'ok') result = {status:'ok', size:`≈ ${withMetricArea(value.area)} (floorplan OCR)`};
+        else if (value.status === 'ok') {
+          const metric = toMetricArea(value.area);
+          result = metric ? {status:'ok', size:`${metric.startsWith('≈') ? metric : `≈ ${metric}`} (floorplan OCR)`} : {status:'no_area'};
+        }
         else result = value;
       }
     } catch { result = {status:job.automatic && !await autoEnabled() ? 'cancelled' : (blocked ? 'blocked' : 'download_failed')}; }
