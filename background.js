@@ -83,6 +83,9 @@ async function readFloorplan(url, signal) {
   if (answer?.error === 'image_invalid') return {status:'image_unsupported'};
   if (answer?.error || typeof answer?.text !== 'string') return {status:'engine_error'};
   if (!answer.text.trim()) return {status:'no_text'};
+  const garageAreas = parseFloorplanGarageAreas(answer.text);
+  if (garageAreas) return {status:'ok', garageAreas};
+  if (/\b(?:including|excluding)\b[^\n]{0,80}\b(?:garage|outbuilding)\b/i.test(answer.text)) return {status:'no_area'};
   const area = parseFloorplanArea(answer.text);
   return area ? {status:'ok', area} : {status:'no_area'};
 }
@@ -111,6 +114,17 @@ async function load(id) {
   } catch { return {error:'unavailable'}; }
 }
 
+// Deduplicate detail reads whether requested by a card or by scan recovery.
+function requestProperty(id) {
+  if (!waiting.has(id)) {
+    const task = serial.then(() => load(id));
+    serial = task.catch(() => {});
+    waiting.set(id, task);
+    task.finally(() => waiting.delete(id));
+  }
+  return waiting.get(id);
+}
+
 // Single OCR worker, separate from detail requests. Manual scans have priority.
 function queueOcr(id, automatic) {
   const existing = ocrPending.get(id);
@@ -131,18 +145,37 @@ async function runOcrQueue() {
     const job = ocrQueue.shift();
     let result;
     try {
-      const entry = cache.get(job.id);
-      if (!entry?.floorplan) result = {status:'unavailable'};
-      else if (job.automatic && !await autoEnabled()) result = {status:'cancelled'};
+      if (job.automatic && !await autoEnabled()) result = {status:'cancelled'};
       else if (blocked) result = {status:'blocked'};
       else {
+        // The service worker can restart while the search card remains visible.
+        let entry = cache.get(job.id);
+        if (!entry?.floorplan) {
+          const details = await requestProperty(job.id);
+          if (details.error === 'blocked') result = {status:'blocked'};
+          else if (details.error) result = {status:'unavailable'};
+          else entry = cache.get(job.id);
+        }
+        if (!result && job.automatic && !await autoEnabled()) result = {status:'cancelled'};
+        if (!result && !entry?.floorplan) result = {status:'unavailable'};
+        if (result) {
+          activeAutomaticController = null;
+          ocrPending.delete(job.id);
+          job.resolve(result);
+          continue;
+        }
         const controller = new AbortController();
         if (job.automatic) activeAutomaticController = controller;
         const value = await readFloorplan(entry.floorplan, controller.signal);
         if (job.automatic && !await autoEnabled()) result = {status:'cancelled'};
         else if (value.status === 'ok') {
-          const metric = toMetricArea(value.area);
-          result = metric ? {status:'ok', size:`${metric.startsWith('≈') ? metric : `≈ ${metric}`} (floorplan OCR)`} : {status:'no_area'};
+          if (value.garageAreas) {
+            const exclusions = `excluding ${value.garageAreas.excludedStructure}${value.garageAreas.restrictedHeadHeight ? ' and restricted head height' : ''}`;
+            result = {status:'ok', size:`≈ ${value.garageAreas.excluding} (${exclusions}; floorplan OCR)`};
+          } else {
+            const metric = toMetricArea(value.area);
+            result = metric ? {status:'ok', size:`${metric.startsWith('≈') ? metric : `≈ ${metric}`} (floorplan OCR)`} : {status:'no_area'};
+          }
         }
         else result = value;
       }
@@ -162,12 +195,6 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     queueOcr(id, message.automatic === true).then(respond, () => respond({status:'unavailable'}));
     return true;
   }
-  if (!waiting.has(id)) {
-    const task = serial.then(() => load(id));
-    serial = task.catch(() => {});
-    waiting.set(id, task);
-    task.finally(() => waiting.delete(id));
-  }
-  waiting.get(id).then(respond, () => respond({error:'unavailable'}));
+  requestProperty(id).then(respond, () => respond({error:'unavailable'}));
   return true;
 });

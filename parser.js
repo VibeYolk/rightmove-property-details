@@ -202,6 +202,8 @@ function parseFloorplanArea(text) {
     const previous = source.slice(0, m.index).split('\n').slice(-2, -1)[0] || '';
     if (/^\s*(?:bedroom|kitchen|reception|bathroom|living\s+room|garden|garage|balcony|terrace|outbuilding|loft)(?:\s+\d+)?\s*[:\-]?\s*$/i.test(previous)) continue;
     let candidate = source.slice(m.index + m[0].length, m.index + m[0].length + 100);
+    // Floorplans may put an approximation qualifier in parentheses after the label.
+    candidate = candidate.replace(/^\s*\(\s*(?:approx(?:imate(?:ly)?)?\.?|circa)\s*\)/i, ' ');
     // OCR can read the superscript in m² as '?'. Only repair it when an
     // independently stated square-foot value follows; the ratio check below
     // must also validate that both values describe the same area.
@@ -218,7 +220,7 @@ function parseFloorplanArea(text) {
       if (!Number.isFinite(second) || second <= 0 || isMetres(value[2]) === isMetres(value[4])) continue;
       const sqm = isMetres(value[2]) ? first : second;
       const sqft = isMetres(value[2]) ? second : first;
-      if (Math.abs(sqft / sqm - 10.7639) > 1.1) continue;
+      if (Math.abs(sqft / sqm - 10.7639) > 0.3) continue;
       result += ' / ' + clean(value[3], value[4]);
     }
     matches.push(result);
@@ -242,11 +244,39 @@ function parseFloorplanArea(text) {
       if (!Number.isFinite(second) || second <= 0 || isMetres(m[2]) === isMetres(m[4])) continue;
       const sqm = isMetres(m[2]) ? first : second;
       const sqft = isMetres(m[2]) ? second : first;
-      if (Math.abs(sqft / sqm - 10.7639) > 1.1) continue;
+      if (Math.abs(sqft / sqm - 10.7639) > 0.3) continue;
       result += ` / ${m[3]} ${m[4].replace(/\s+/g, ' ').trim()}`;
     }
     standalone.push(result);
   }
   return standalone.length === 1 ? standalone[0] : null;
 }
-if (typeof module !== 'undefined') module.exports = { parseProperty, decodeModel, readModel, parseFloorplanArea, toMetricArea, parseTenure };
+// Select an explicitly structure-exclusive total; never subtract or guess.
+function parseFloorplanGarageAreas(text) {
+  if (typeof text !== 'string') return null;
+  const entries = {};
+  const unit = '(?:sq\\.?\\s*(?:ft|feet|m)\\.?|square\\s*(?:feet|foot|metres?|meters?)|sqft|sqm|m(?:²|\\^?2)|ft(?:²|\\^?2))';
+  const measurement = `\\d[\\d,]*(?:\\.\\d+)?\\s*${unit}`;
+  const line = new RegExp(`^\\s*total\\s+approx(?:imate(?:ly)?)?\\.?\\s+floor\\s+plan\\s+area\\s+(including|excluding)\\s+(garage|outbuilding)(\\s*/\\s*restricted\\s+head\\s+height)?\\s*[:=-]?\\s*(${measurement}(?:\\s*(?:/|\\(|=)\\s*${measurement}\\s*\\)?)?)\\s*$`, 'i');
+  for (const textLine of text.replace(/\r/g, '').split('\n')) {
+    const m = textLine.match(line);
+    if (!m) {
+      // Do not silently discard another total or an incomplete garage qualifier.
+      if (/\b(?:including|excluding)\b[^\n]{0,80}\b(?:garage|outbuilding)\b/i.test(textLine) ||
+          /\b(?:gross\s+internal\s+(?:floor\s+)?area|total\s+(?:internal\s+)?(?:floor\s+)?area|internal\s+floor\s+area|floor\s+(?:plan\s+)?area|GIA)\b/i.test(textLine)) return null;
+      continue;
+    }
+    const key = m[1].toLowerCase();
+    if (entries[key]) return null;
+    const parsed = parseFloorplanArea('Total floor area ' + m[4]);
+    const metric = parsed && toMetricArea(parsed);
+    if (!metric) return null;
+    entries[key] = {area: metric.replace(/^≈\s*/, ''), excludedStructure: m[2].toLowerCase(), restrictedHeadHeight: !!m[3]};
+  }
+  if (!entries.excluding) return null;
+  if (entries.including && (entries.including.excludedStructure !== entries.excluding.excludedStructure ||
+      entries.including.restrictedHeadHeight !== entries.excluding.restrictedHeadHeight ||
+      parseFloat(entries.including.area.replace(/,/g, '')) < parseFloat(entries.excluding.area.replace(/,/g, '')))) return null;
+  return {excluding: entries.excluding.area, excludedStructure: entries.excluding.excludedStructure, restrictedHeadHeight: entries.excluding.restrictedHeadHeight};
+}
+if (typeof module !== 'undefined') module.exports = { parseProperty, decodeModel, readModel, parseFloorplanArea, parseFloorplanGarageAreas, toMetricArea, parseTenure };
